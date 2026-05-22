@@ -2,45 +2,48 @@ import streamlit as st
 import numpy as np
 import json
 from PIL import Image
+import struct
 
 @st.cache_resource
 def load_model():
-    import ctypes, pathlib
-    # Load TFLite model using numpy only
-    with open('fashion_model.tflite', 'rb') as f:
-        model_data = f.read()
     with open('classes.json') as f:
         class_names = json.load(f)
-    return model_data, class_names
+    
+    # Load TFLite using flatbuffers via numpy
+    import importlib
+    
+    # Try tensorflow
+    try:
+        import tensorflow as tf
+        interpreter = tf.lite.Interpreter(model_path='fashion_model.tflite')
+        interpreter.allocate_tensors()
+        return interpreter, class_names, 'tf'
+    except:
+        pass
+    
+    # Try tflite_runtime
+    try:
+        import tflite_runtime.interpreter as tflite
+        interpreter = tflite.Interpreter(model_path='fashion_model.tflite')
+        interpreter.allocate_tensors()
+        return interpreter, class_names, 'tflite'
+    except:
+        pass
+    
+    return None, class_names, None
+
+CLASS_ICONS = {'T-Shirt': '👕', 'Dress': '👗', 'Pants': '👖'}
 
 st.set_page_config(page_title="Fashion Classifier", page_icon="👗")
 st.title("👗 Fashion Classifier")
 st.write("Upload an image — AI will predict the clothing type!")
 
-try:
-    import tflite_runtime.interpreter as tflite
-    TFLITE_AVAILABLE = True
-except:
-    try:
-        import tensorflow as tf
-        tflite = tf.lite
-        TFLITE_AVAILABLE = True
-    except:
-        TFLITE_AVAILABLE = False
+interpreter, class_names, runtime = load_model()
 
-with open('classes.json') as f:
-    class_names = json.load(f)
-
-CLASS_ICONS = {'T-Shirt': '👕', 'Dress': '👗', 'Pants': '👖'}
-
-if not TFLITE_AVAILABLE:
-    st.error("Model runtime not available!")
+if interpreter is None:
+    st.error(f"Runtime: {runtime}")
+    st.info("Trying to load model...")
 else:
-    if 'tflite_runtime' in str(type(tflite)):
-        interpreter = tflite.Interpreter(model_path='fashion_model.tflite')
-    else:
-        interpreter = tflite.Interpreter(model_path='fashion_model.tflite')
-    interpreter.allocate_tensors()
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
 
