@@ -2,35 +2,25 @@ import streamlit as st
 import numpy as np
 import json
 from PIL import Image
-import struct
+import subprocess
+import sys
 
+# Install flatbuffers for TFLite parsing
 @st.cache_resource
 def load_model():
     with open('classes.json') as f:
         class_names = json.load(f)
     
-    # Load TFLite using flatbuffers via numpy
-    import importlib
-    
-    # Try tensorflow
+    # Install ai-edge-litert (Google's new TFLite package)
     try:
-        import tensorflow as tf
-        interpreter = tf.lite.Interpreter(model_path='fashion_model.tflite')
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'ai-edge-litert', '-q'])
+        from ai_edge_litert.interpreter import Interpreter
+        interpreter = Interpreter(model_path='fashion_model.tflite')
         interpreter.allocate_tensors()
-        return interpreter, class_names, 'tf'
-    except:
-        pass
-    
-    # Try tflite_runtime
-    try:
-        import tflite_runtime.interpreter as tflite
-        interpreter = tflite.Interpreter(model_path='fashion_model.tflite')
-        interpreter.allocate_tensors()
-        return interpreter, class_names, 'tflite'
-    except:
-        pass
-    
-    return None, class_names, None
+        return interpreter, class_names
+    except Exception as e:
+        st.error(f"Error: {e}")
+        return None, class_names
 
 CLASS_ICONS = {'T-Shirt': '👕', 'Dress': '👗', 'Pants': '👖'}
 
@@ -38,11 +28,10 @@ st.set_page_config(page_title="Fashion Classifier", page_icon="👗")
 st.title("👗 Fashion Classifier")
 st.write("Upload an image — AI will predict the clothing type!")
 
-interpreter, class_names, runtime = load_model()
+interpreter, class_names = load_model()
 
 if interpreter is None:
-    st.error(f"Runtime: {runtime}")
-    st.info("Trying to load model...")
+    st.warning("Loading model runtime...")
 else:
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
